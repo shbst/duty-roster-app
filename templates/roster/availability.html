@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}希望しない日｜{{ roster_month }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">AVAILABILITY</p><h1>希望しない日</h1><p>{{ roster_month }}・チェックした枠には割り当てません。</p></div>
+  <a class="button secondary" href="{% url 'roster_detail' roster_month.pk %}">当直表へ戻る</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="availability-list">
+    {% for row in matrix %}
+      <details class="availability-member" {% if forloop.first %}open{% endif %}>
+        <summary>
+          <span class="avatar">{{ row.member.name|slice:":1" }}</span>
+          <strong>{{ row.member.name }}</strong>
+          <label class="target-count" onclick="event.stopPropagation()">月間担当回数
+            <input type="number" min="0" max="62" name="target_{{ row.member.id }}" value="{{ row.target_count|default_if_none:'' }}" placeholder="自動">
+          </label>
+        </summary>
+        <div class="calendar-wrap">
+          <div class="weekday-header">
+            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="weekend">土</span><span class="weekend">日</span>
+          </div>
+          <div class="day-grid">
+          {% for blank in row.leading_blanks %}<div class="day-card blank" aria-hidden="true"></div>{% endfor %}
+          {% for cell in row.cells %}
+            <article class="day-card {% if cell.day.is_holiday %}holiday{% endif %}">
+              <div class="day-card-heading">
+                <strong>{{ cell.day.duty_date|date:"n/j" }}</strong>
+                <span>{{ cell.day.duty_date|date:"D" }}</span>
+              </div>
+              {% if cell.day.is_holiday %}
+                <label class="check-row"><input type="checkbox" name="{{ cell.day_key }}" {% if cell.day_blocked %}checked{% endif %}><span>日直</span></label>
+              {% endif %}
+              <label class="check-row"><input type="checkbox" name="{{ cell.night_key }}" {% if cell.night_blocked %}checked{% endif %}><span>夜間</span></label>
+            </article>
+          {% endfor %}
+          </div>
+        </div>
+      </details>
+    {% empty %}
+      <div class="empty-state">有効な担当者がいません。先に担当者を登録してください。</div>
+    {% endfor %}
+  </div>
+  <div class="sticky-actions"><button class="button primary" type="submit">希望しない日を保存</button></div>
+</form>
+{% endblock %}

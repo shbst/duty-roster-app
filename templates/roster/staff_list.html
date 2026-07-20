@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}担当者管理{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">STAFF</p><h1>担当者管理</h1></div>
+  <a class="button secondary" href="{% url 'dashboard' %}">当直表へ戻る</a>
+</div>
+
+<div class="two-column">
+  <section class="panel">
+    <h2>担当者を追加</h2>
+    <form method="post" class="stack-form">
+      {% csrf_token %}
+      {% for field in form %}
+        <label>{{ field.label }}{{ field }}{% for error in field.errors %}<span class="field-error">{{ error }}</span>{% endfor %}</label>
+      {% endfor %}
+      <button class="button primary" type="submit">追加する</button>
+    </form>
+  </section>
+  <section class="panel">
+    <div class="section-heading compact"><h2>登録済み担当者</h2><span>{{ members|length }}名</span></div>
+    <div class="member-list">
+      {% for member in members %}
+        <div class="member-row">
+          <div class="avatar">{{ member.name|slice:":1" }}</div>
+          <div class="member-info">
+            <strong>{{ member.name }}</strong>
+            <span>表示順 {{ member.display_order }}</span>
+          </div>
+          <form method="post" action="{% url 'staff_toggle' member.pk %}">
+            {% csrf_token %}
+            <button class="chip {% if member.is_active %}active{% endif %}" type="submit">
+              {% if member.is_active %}有効{% else %}無効{% endif %}
+            </button>
+          </form>
+          <form method="post" action="{% url 'staff_delete' member.pk %}" data-confirm="{{ member.name }}を削除しますか？ 過去の実績は保持されます。">
+            {% csrf_token %}
+            <button class="icon-button danger" type="submit" aria-label="{{ member.name }}を削除">削除</button>
+          </form>
+        </div>
+      {% empty %}
+        <div class="empty-state">担当者を追加してください。</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

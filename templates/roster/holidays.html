@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}休日設定｜{{ roster_month }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">HOLIDAYS</p><h1>休日設定</h1><p>{{ roster_month }}・休日には日直と夜間当直を割り当てます。</p></div>
+  <a class="button secondary" href="{% url 'roster_detail' roster_month.pk %}">当直表へ戻る</a>
+</div>
+<form method="post">
+  {% csrf_token %}
+  <div class="holiday-grid">
+    {% for day in days %}
+      <label class="holiday-toggle {% if day.is_holiday %}selected{% endif %}">
+        <input type="checkbox" name="holiday_{{ day.id }}" {% if day.is_holiday %}checked{% endif %}>
+        <span class="date">{{ day.duty_date|date:"n/j" }}</span>
+        <span>{{ day.duty_date|date:"D" }}</span>
+        <small>{% if day.holiday_name %}{{ day.holiday_name }}{% elif day.is_holiday %}休日{% else %}平日{% endif %}</small>
+      </label>
+    {% endfor %}
+  </div>
+  <div class="sticky-actions"><button class="button primary" type="submit">休日設定を保存</button></div>
+</form>
+{% endblock %}

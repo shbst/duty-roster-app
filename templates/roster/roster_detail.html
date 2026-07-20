@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ roster_month }}{% endblock %}
+{% block content %}
+<div class="page-heading roster-heading">
+  <div>
+    <p class="eyebrow">MONTHLY ROSTER</p>
+    <div class="title-line"><h1>{{ roster_month }}</h1><span class="status {{ roster_month.status }}">{{ roster_month.get_status_display }}</span></div>
+  </div>
+  <a class="button secondary" href="{% url 'dashboard' %}">月一覧へ</a>
+</div>
+
+<div class="action-bar">
+  <div class="action-links">
+    <a class="button secondary" href="{% url 'availability' roster_month.pk %}">希望しない日</a>
+    <a class="button secondary" href="{% url 'holidays' roster_month.pk %}">休日設定</a>
+  </div>
+  <div class="action-links">
+    <form method="post" action="{% url 'roster_generate' roster_month.pk %}" data-confirm="現在の未確定結果を置き換えて生成しますか？">
+      {% csrf_token %}
+      <button class="button primary" type="submit">当直表を生成</button>
+    </form>
+    <form method="post" action="{% url 'roster_confirm' roster_month.pk %}" data-confirm="この当直表を確定しますか？">
+      {% csrf_token %}
+      <button class="button dark" type="submit">確定する</button>
+    </form>
+    {% if roster_month.status == "confirmed" %}
+      <a class="button pdf" href="{% url 'roster_pdf' roster_month.pk %}">PDF出力</a>
+    {% endif %}
+  </div>
+</div>
+
+<section class="panel flush">
+  <div class="table-scroll">
+    <table class="roster-table">
+      <thead><tr><th>日付</th><th>区分</th><th>日直</th><th>夜間当直</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr class="{% if row.day.is_holiday %}holiday-row{% endif %}">
+          <td>
+            <strong>{{ row.day.duty_date|date:"n/j" }}</strong>
+            <span class="weekday">{{ row.day.duty_date|date:"D" }}</span>
+          </td>
+          <td>
+            {% if row.day.is_holiday %}
+              <span class="holiday-label">{{ row.day.holiday_name|default:"休日" }}</span>
+            {% else %}<span class="muted">平日</span>{% endif %}
+          </td>
+          <td>
+            {% if row.day.is_holiday %}
+              <form class="assignment-form" method="post" action="{% url 'assignment_update' roster_month.pk row.day.pk 'day' %}">
+                {% csrf_token %}
+                <select name="staff_member" aria-label="{{ row.day.duty_date }}の日直" onchange="this.form.submit()">
+                  <option value="">未割当</option>
+                  {% for member in members %}<option value="{{ member.pk }}" {% if row.day_assignment.staff_member_id == member.pk %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+                </select>
+                {% if row.day_assignment.is_manual %}<span class="manual-dot" title="手動変更">●</span>{% endif %}
+              </form>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td>
+            <form class="assignment-form" method="post" action="{% url 'assignment_update' roster_month.pk row.day.pk 'night' %}">
+              {% csrf_token %}
+              <select name="staff_member" aria-label="{{ row.day.duty_date }}の夜間当直" onchange="this.form.submit()">
+                <option value="">未割当</option>
+                {% for member in members %}<option value="{{ member.pk }}" {% if row.night_assignment.staff_member_id == member.pk %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+              </select>
+              {% if row.night_assignment.is_manual %}<span class="manual-dot" title="手動変更">●</span>{% endif %}
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-heading">
+    <div><p class="eyebrow">BALANCE</p><h2>担当回数</h2></div>
+    <p class="muted">休日担当の最多・最少差は1回以内</p>
+  </div>
+  <div class="summary-grid">
+    {% for item in summary %}
+      <article class="summary-card">
+        <strong>{{ item.member.name }}</strong>
+        <div class="summary-numbers">
+          <span><b>{{ item.total }}</b>合計</span>
+          <span><b>{{ item.day }}</b>日直</span>
+          <span><b>{{ item.night }}</b>夜間</span>
+          <span class="accent"><b>{{ item.holiday }}</b>休日</span>
+        </div>
+      </article>
+    {% empty %}
+      <div class="empty-state">有効な担当者がいません。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

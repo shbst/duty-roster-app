@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}当直表一覧{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <div class="hero-identity">
+      <span class="hospital-logo" aria-hidden="true"><i></i></span>
+      <div><p class="eyebrow">HOSPITAL DUTY ROSTER</p><span>医療チームの勤務を、正確に。</span></div>
+    </div>
+    <h1>月ごとの当直を、<br>公平に組み立てる。</h1>
+    <p>希望しない日と休日担当の平等性を守りながら、当直表を自動生成します。</p>
+  </div>
+  <form method="post" class="month-card">
+    {% csrf_token %}
+    <h2>新しい月を開く</h2>
+    <div class="inline-fields">
+      <label>{{ form.year.label }}{{ form.year }}</label>
+      <label>{{ form.month.label }}{{ form.month }}</label>
+    </div>
+    {% if form.errors %}<p class="field-error">年月を正しく入力してください。</p>{% endif %}
+    <button class="button primary wide" type="submit">当直表を準備</button>
+  </form>
+</section>
+
+<section class="section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">ROSTERS</p>
+      <h2>作成した当直表</h2>
+    </div>
+    <a class="text-link" href="{% url 'staff_list' %}">担当者を管理 →</a>
+  </div>
+  <div class="roster-grid">
+    {% for item in roster_months %}
+      <a class="roster-card" href="{% url 'roster_detail' item.pk %}">
+        <div>
+          <span class="status {{ item.status }}">{{ item.get_status_display }}</span>
+          <h3>{{ item.year }}年 {{ item.month }}月</h3>
+        </div>
+        <span class="arrow">→</span>
+      </a>
+    {% empty %}
+      <div class="empty-state">まだ当直表がありません。上のフォームから対象月を作成してください。</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">CUMULATIVE RECORD</p>
+      <h2>担当者別 累積実績</h2>
+    </div>
+    <p class="muted">生成済み・確定済みの当直をすべて集計</p>
+  </div>
+  <div class="summary-grid cumulative-grid">
+    {% for item in cumulative %}
+      <article class="summary-card">
+        <strong>{{ item.member.name }}</strong>
+        <div class="summary-numbers">
+          <span><b>{{ item.total }}</b>合計</span>
+          <span><b>{{ item.day }}</b>日直</span>
+          <span><b>{{ item.night }}</b>夜間</span>
+          <span class="accent"><b>{{ item.holiday }}</b>休日</span>
+        </div>
+      </article>
+    {% empty %}
+      <div class="empty-state">担当者を登録すると、ここに累積実績が表示されます。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
