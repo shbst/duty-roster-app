@@ -10,8 +10,8 @@ from django.views.decorators.http import require_POST
 
 from .forms import MonthForm, StaffMemberForm
 from .models import (
-    CalendarDay,
     DutyAssignment,
+    DutySlotSetting,
     DutyType,
     MonthlyStaffSetting,
     RosterMonth,
@@ -19,7 +19,7 @@ from .models import (
     UnavailableSlot,
 )
 from .pdf_service import build_roster_pdf
-from .services import GenerationError, ensure_calendar, generate_roster
+from .services import GenerationError, ensure_calendar, generate_roster, slots_for
 
 
 def dashboard(request):
@@ -93,8 +93,20 @@ def _get_month(pk):
     return roster_month
 
 
+@require_POST
+def roster_delete(request, pk):
+    roster_month = get_object_or_404(RosterMonth, pk=pk)
+    month_label = str(roster_month)
+    roster_month.delete()
+    messages.success(request, f"{month_label}の当直表を削除しました。")
+    return redirect("dashboard")
+
+
 def roster_detail(request, pk):
     roster_month = _get_month(pk)
+    enabled_slots = {
+        (day.id, duty_type) for day, duty_type in slots_for(roster_month)
+    }
     assignments = {
         (assignment.calendar_day_id, assignment.duty_type): assignment
         for assignment in roster_month.assignments.select_related("staff_member")
@@ -104,6 +116,8 @@ def roster_detail(request, pk):
             "day": day,
             "day_assignment": assignments.get((day.id, DutyType.DAY)),
             "night_assignment": assignments.get((day.id, DutyType.NIGHT)),
+            "day_enabled": (day.id, DutyType.DAY) in enabled_slots,
+            "night_enabled": (day.id, DutyType.NIGHT) in enabled_slots,
         }
         for day in roster_month.days.all()
     ]
@@ -220,25 +234,65 @@ def availability(request, pk):
     )
 
 
-def holidays(request, pk):
+def duty_days(request, pk):
     roster_month = _get_month(pk)
     days = list(roster_month.days.all())
     if request.method == "POST":
+        settings = []
+        enabled_slots = set()
         for day in days:
-            selected = bool(request.POST.get(f"holiday_{day.id}"))
-            if selected != day.is_holiday:
-                day.is_holiday = selected
-                day.holiday_source = CalendarDay.HolidaySource.OVERRIDE
-                day.holiday_name = "手動設定" if selected else ""
-                day.save(
-                    update_fields=["is_holiday", "holiday_source", "holiday_name"]
+            for duty_type in DutyType.values:
+                is_enabled = bool(
+                    request.POST.get(f"slot_{day.id}_{duty_type}")
                 )
-        messages.success(request, "休日設定を保存しました。")
-        return redirect("holidays", pk=pk)
+                settings.append(
+                    DutySlotSetting(
+                        roster_month=roster_month,
+                        calendar_day=day,
+                        duty_type=duty_type,
+                        is_enabled=is_enabled,
+                    )
+                )
+                if is_enabled:
+                    enabled_slots.add((day.id, duty_type))
+        with transaction.atomic():
+            roster_month.duty_slot_settings.all().delete()
+            DutySlotSetting.objects.bulk_create(settings)
+            for day in days:
+                for duty_type in DutyType.values:
+                    if (day.id, duty_type) not in enabled_slots:
+                        DutyAssignment.objects.filter(
+                            roster_month=roster_month,
+                            calendar_day=day,
+                            duty_type=duty_type,
+                        ).delete()
+            roster_month.status = RosterMonth.Status.DRAFT
+            roster_month.confirmed_at = None
+            roster_month.save(
+                update_fields=["status", "confirmed_at", "updated_at"]
+            )
+        messages.success(request, "担当日設定を保存しました。")
+        return redirect("duty_days", pk=pk)
+
+    enabled_slots = {
+        (day.id, duty_type) for day, duty_type in slots_for(roster_month)
+    }
+    rows = [
+        {
+            "day": day,
+            "day_enabled": (day.id, DutyType.DAY) in enabled_slots,
+            "night_enabled": (day.id, DutyType.NIGHT) in enabled_slots,
+        }
+        for day in days
+    ]
     return render(
         request,
-        "roster/holidays.html",
-        {"roster_month": roster_month, "days": days},
+        "roster/duty_days.html",
+        {
+            "roster_month": roster_month,
+            "rows": rows,
+            "leading_blanks": range(days[0].duty_date.weekday()) if days else [],
+        },
     )
 
 
@@ -259,11 +313,26 @@ def assignment_update(request, pk, day_id, duty_type):
     day = get_object_or_404(roster_month.days, pk=day_id)
     if duty_type not in DutyType.values:
         return HttpResponseBadRequest("不正な当直種別です。")
-    if duty_type == DutyType.DAY and not day.is_holiday:
-        return HttpResponseBadRequest("平日に日直は設定できません。")
+    enabled_slots = {
+        (slot_day.id, slot_type)
+        for slot_day, slot_type in slots_for(roster_month)
+    }
+    if (day.id, duty_type) not in enabled_slots:
+        return HttpResponseBadRequest("割り当てなしの枠には担当者を設定できません。")
+    member_id = request.POST.get("staff_member")
+    if not member_id:
+        DutyAssignment.objects.filter(
+            calendar_day=day,
+            duty_type=duty_type,
+        ).delete()
+        roster_month.status = RosterMonth.Status.GENERATED
+        roster_month.confirmed_at = None
+        roster_month.save(update_fields=["status", "confirmed_at", "updated_at"])
+        messages.success(request, "未割り当てに変更しました。")
+        return redirect("roster_detail", pk=pk)
     member = get_object_or_404(
         StaffMember,
-        pk=request.POST.get("staff_member"),
+        pk=member_id,
         is_active=True,
         is_deleted=False,
     )
@@ -295,7 +364,7 @@ def assignment_update(request, pk, day_id, duty_type):
 @require_POST
 def roster_confirm(request, pk):
     roster_month = _get_month(pk)
-    expected = sum(2 if day.is_holiday else 1 for day in roster_month.days.all())
+    expected = len(slots_for(roster_month))
     if roster_month.assignments.count() != expected:
         messages.error(request, "未割り当ての枠があるため確定できません。")
         return redirect("roster_detail", pk=pk)

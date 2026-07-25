@@ -13,8 +13,8 @@ document.querySelectorAll("form[data-confirm]").forEach((form) => {
   });
 });
 
-document.querySelectorAll(".holiday-toggle input").forEach((input) => {
+document.querySelectorAll(".duty-slot-option input").forEach((input) => {
   input.addEventListener("change", () => {
-    input.closest(".holiday-toggle").classList.toggle("selected", input.checked);
+    input.closest(".duty-slot-option").classList.toggle("selected", input.checked);
   });
 });

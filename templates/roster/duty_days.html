@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}担当日設定｜{{ roster_month }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">DUTY DAYS</p>
+    <h1>担当日設定</h1>
+    <p>{{ roster_month }}・担当者を割り当てる当直枠を選択してください。</p>
+  </div>
+  <a class="button secondary" href="{% url 'roster_detail' roster_month.pk %}">当直表へ戻る</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="duty-calendar-wrap">
+    <div class="duty-weekday-header" aria-hidden="true">
+      <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="weekend">土</span><span class="weekend">日</span>
+    </div>
+    <div class="duty-calendar-grid">
+      {% for unused in leading_blanks %}<div class="duty-day-card blank" aria-hidden="true"></div>{% endfor %}
+      {% for row in rows %}
+        <article class="duty-day-card {% if row.day.is_holiday %}holiday{% endif %}">
+          <div class="duty-date-heading">
+            <strong>{{ row.day.duty_date|date:"n/j" }}</strong>
+            <span>{{ row.day.duty_date|date:"D" }}</span>
+          </div>
+          <small class="duty-day-kind">{% if row.day.holiday_name %}{{ row.day.holiday_name }}{% elif row.day.is_holiday %}休日{% else %}平日{% endif %}</small>
+          <div class="duty-slot-options">
+            <label class="duty-slot-option {% if row.day_enabled %}selected{% endif %}">
+              <input type="checkbox" name="slot_{{ row.day.id }}_day" {% if row.day_enabled %}checked{% endif %}>
+              <span>日直</span>
+            </label>
+            <label class="duty-slot-option {% if row.night_enabled %}selected{% endif %}">
+              <input type="checkbox" name="slot_{{ row.day.id }}_night" {% if row.night_enabled %}checked{% endif %}>
+              <span>夜間当直</span>
+            </label>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="sticky-actions">
+    <button class="button primary" type="submit">担当日設定を保存</button>
+  </div>
+</form>
+{% endblock %}

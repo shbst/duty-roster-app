@@ -40,12 +40,17 @@ class GenerationError(Exception):
     pass
 
 
-def _slots_for(roster_month):
+def slots_for(roster_month):
+    settings = {
+        (setting.calendar_day_id, setting.duty_type): setting.is_enabled
+        for setting in roster_month.duty_slot_settings.all()
+    }
     slots = []
     for day in roster_month.days.all():
-        if day.is_holiday:
+        if settings.get((day.id, DutyType.DAY), day.is_holiday):
             slots.append((day, DutyType.DAY))
-        slots.append((day, DutyType.NIGHT))
+        if settings.get((day.id, DutyType.NIGHT), True):
+            slots.append((day, DutyType.NIGHT))
     return slots
 
 
@@ -58,7 +63,7 @@ def generate_roster(roster_month):
     if not members:
         raise GenerationError("有効な担当者が登録されていません。")
 
-    slots = _slots_for(roster_month)
+    slots = slots_for(roster_month)
     blocked = set(
         roster_month.unavailable_slots.values_list(
             "calendar_day_id", "staff_member_id", "duty_type"

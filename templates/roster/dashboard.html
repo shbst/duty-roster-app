@@ -32,13 +32,19 @@
   </div>
   <div class="roster-grid">
     {% for item in roster_months %}
-      <a class="roster-card" href="{% url 'roster_detail' item.pk %}">
-        <div>
-          <span class="status {{ item.status }}">{{ item.get_status_display }}</span>
-          <h3>{{ item.year }}年 {{ item.month }}月</h3>
-        </div>
-        <span class="arrow">→</span>
-      </a>
+      <article class="roster-card">
+        <a class="roster-card-link" href="{% url 'roster_detail' item.pk %}">
+          <div>
+            <span class="status {{ item.status }}">{{ item.get_status_display }}</span>
+            <h3>{{ item.year }}年 {{ item.month }}月</h3>
+          </div>
+          <span class="arrow">→</span>
+        </a>
+        <form class="roster-card-delete" method="post" action="{% url 'roster_delete' item.pk %}" data-confirm="{{ item.year }}年{{ item.month }}月の当直表を削除しますか？ この操作は取り消せません。">
+          {% csrf_token %}
+          <button class="icon-button danger" type="submit" aria-label="{{ item.year }}年{{ item.month }}月の当直表を削除">削除</button>
+        </form>
+      </article>
     {% empty %}
       <div class="empty-state">まだ当直表がありません。上のフォームから対象月を作成してください。</div>
     {% endfor %}

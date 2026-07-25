@@ -12,9 +12,13 @@
 <div class="action-bar">
   <div class="action-links">
     <a class="button secondary" href="{% url 'availability' roster_month.pk %}">希望しない日</a>
-    <a class="button secondary" href="{% url 'holidays' roster_month.pk %}">休日設定</a>
+    <a class="button secondary" href="{% url 'duty_days' roster_month.pk %}">担当日設定</a>
   </div>
   <div class="action-links">
+    <form method="post" action="{% url 'roster_delete' roster_month.pk %}" data-confirm="{{ roster_month }}の当直表を削除しますか？ この操作は取り消せません。">
+      {% csrf_token %}
+      <button class="button danger" type="submit">当直表を削除</button>
+    </form>
     <form method="post" action="{% url 'roster_generate' roster_month.pk %}" data-confirm="現在の未確定結果を置き換えて生成しますか？">
       {% csrf_token %}
       <button class="button primary" type="submit">当直表を生成</button>
@@ -46,7 +50,7 @@
             {% else %}<span class="muted">平日</span>{% endif %}
           </td>
           <td>
-            {% if row.day.is_holiday %}
+            {% if row.day_enabled %}
               <form class="assignment-form" method="post" action="{% url 'assignment_update' roster_month.pk row.day.pk 'day' %}">
                 {% csrf_token %}
                 <select name="staff_member" aria-label="{{ row.day.duty_date }}の日直" onchange="this.form.submit()">
@@ -55,17 +59,19 @@
                 </select>
                 {% if row.day_assignment.is_manual %}<span class="manual-dot" title="手動変更">●</span>{% endif %}
               </form>
-            {% else %}<span class="muted">—</span>{% endif %}
+            {% else %}<span class="muted">-</span>{% endif %}
           </td>
           <td>
-            <form class="assignment-form" method="post" action="{% url 'assignment_update' roster_month.pk row.day.pk 'night' %}">
-              {% csrf_token %}
-              <select name="staff_member" aria-label="{{ row.day.duty_date }}の夜間当直" onchange="this.form.submit()">
-                <option value="">未割当</option>
-                {% for member in members %}<option value="{{ member.pk }}" {% if row.night_assignment.staff_member_id == member.pk %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
-              </select>
-              {% if row.night_assignment.is_manual %}<span class="manual-dot" title="手動変更">●</span>{% endif %}
-            </form>
+            {% if row.night_enabled %}
+              <form class="assignment-form" method="post" action="{% url 'assignment_update' roster_month.pk row.day.pk 'night' %}">
+                {% csrf_token %}
+                <select name="staff_member" aria-label="{{ row.day.duty_date }}の夜間当直" onchange="this.form.submit()">
+                  <option value="">未割当</option>
+                  {% for member in members %}<option value="{{ member.pk }}" {% if row.night_assignment.staff_member_id == member.pk %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+                </select>
+                {% if row.night_assignment.is_manual %}<span class="manual-dot" title="手動変更">●</span>{% endif %}
+              </form>
+            {% else %}<span class="muted">-</span>{% endif %}
           </td>
         </tr>
       {% endfor %}

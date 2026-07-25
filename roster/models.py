@@ -139,6 +139,29 @@ class UnavailableSlot(models.Model):
         verbose_name_plural = "希望しない当直枠"
 
 
+class DutySlotSetting(models.Model):
+    roster_month = models.ForeignKey(
+        RosterMonth, on_delete=models.CASCADE, related_name="duty_slot_settings"
+    )
+    calendar_day = models.ForeignKey(
+        CalendarDay, on_delete=models.CASCADE, related_name="duty_slot_settings"
+    )
+    duty_type = models.CharField("当直種別", max_length=20, choices=DutyType.choices)
+    is_enabled = models.BooleanField("割り当てる", default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["calendar_day", "duty_type"],
+                name="unique_duty_slot_setting",
+            )
+        ]
+        verbose_name = "担当日設定"
+        verbose_name_plural = "担当日設定"
+
+
 class DutyAssignment(models.Model):
     roster_month = models.ForeignKey(
         RosterMonth, on_delete=models.CASCADE, related_name="assignments"
