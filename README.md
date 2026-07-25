@@ -2,7 +2,7 @@
 
 約10人のメンバーを対象に、月単位の当直表をブラウザ上で作成するPythonベースのWebアプリです。各メンバーが希望しない日時を登録し、その条件を考慮して当直表を自動生成します。
 
-仕様に基づく初期版をDjangoで実装済みです。担当者管理、休日設定、希望しない日の入力、月間担当回数指定、公平性を考慮した自動生成、累積実績、手動調整、確定、PDF出力、PC・スマートフォン対応を含みます。
+仕様に基づく初期版をDjangoで実装済みです。担当者管理、担当日の入力、希望しない日の入力、月間担当回数指定、公平性を考慮した自動生成、累積実績、手動調整、確定、PDF出力、PC・スマートフォン対応を含みます。
 
 ## 起動方法
 
@@ -24,6 +24,112 @@ Python 3.12以降をインストールしたうえで、次を実行します。
 .\setup.ps1
 .\start.ps1
 ```
+
+### Ubuntu 24.04で最初から起動する
+
+#### 1. Pythonと仮想環境を準備する
+
+必要なパッケージをインストールします。
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip
+```
+
+プロジェクトのディレクトリへ移動します。`/path/to/当直表作成アプリ`は、実際の配置場所に置き換えてください。
+
+```bash
+cd /path/to/当直表作成アプリ
+```
+
+仮想環境を作成し、依存パッケージをインストールします。
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+2回目以降は、プロジェクトへ移動して仮想環境を有効化するだけで準備できます。
+
+```bash
+cd /path/to/当直表作成アプリ
+source .venv/bin/activate
+```
+
+#### 2. 環境変数を設定する
+
+ローカルで試用する場合は、起動するターミナルで次を実行します。
+
+```bash
+export DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
+export DJANGO_DEBUG=true
+export DJANGO_ALLOWED_HOSTS="127.0.0.1,localhost,0.0.0.0"
+```
+
+#### 3. DBを作成する
+
+新しいSQLite DBとテーブルを作成します。
+
+```bash
+python manage.py migrate
+```
+
+既存のDBを初期化して作り直す場合は、先にバックアップしてからマイグレーションを実行します。
+
+```bash
+test ! -f db.sqlite3 || mv db.sqlite3 "db.sqlite3.backup-$(date +%Y%m%d-%H%M%S)"
+python manage.py migrate
+```
+
+#### 4. `test`担当者を登録する
+
+次のコマンドは、`test`担当者が存在しない場合だけ登録するため、繰り返し実行しても重複しません。
+
+```bash
+python manage.py shell -c "from roster.models import StaffMember; StaffMember.objects.get_or_create(name='test', defaults={'display_order': 1})"
+```
+
+登録内容を確認します。
+
+```bash
+python manage.py shell -c "from roster.models import StaffMember; print(list(StaffMember.objects.values('id', 'name', 'display_order', 'is_active')))"
+```
+
+#### 5. テストと起動
+
+テストを実行します。
+
+```bash
+python manage.py test
+```
+
+Ubuntuマシン内からのみ利用する場合は、次のコマンドで起動します。
+
+```bash
+python manage.py runserver 127.0.0.1:8000
+```
+
+同じLAN内のPCやスマートフォンからも利用する場合は、すべてのネットワークインターフェースで待ち受けます。
+
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+UbuntuマシンのIPアドレスは次のコマンドで確認できます。
+
+```bash
+hostname -I
+```
+
+例えばIPアドレスが`192.168.1.50`の場合、別端末のブラウザで`http://192.168.1.50:8000/`を開きます。Ubuntuのファイアウォールが有効な場合は、必要に応じてポート8000を許可します。
+
+```bash
+sudo ufw allow 8000/tcp
+```
+
+`runserver`は開発・試用向けです。インターネットへ公開する場合は、GunicornやNginxなどを使用して本番環境を構成してください。
 
 ### スマートフォンからアクセスする
 
@@ -156,11 +262,11 @@ PCとスマートフォンを同じネットワークに接続し、PC側で `st
 - 表示順の変更
 - 有効・無効の切り替え
 
-### 休日設定画面
+### 担当日設定画面
 
+- 月間カレンダーで日直・夜間当直の有無を設定
 - 土日・祝日の自動表示
-- 組織独自の休日追加
-- 特定日の休日扱い解除
+- 割り当てなしの枠を当直表でハイフン表示
 
 ## 5. PC・スマートフォン対応
 
@@ -382,8 +488,8 @@ erDiagram
 | `GET` | `/users` | 担当者一覧 |
 | `POST` | `/users` | 担当者追加 |
 | `POST` | `/users/{user_id}` | 担当者更新 |
-| `GET` | `/holidays/{year}/{month}` | 休日設定画面 |
-| `POST` | `/holidays/{year}/{month}` | 休日設定の保存 |
+| `GET` | `/rosters/{id}/duty-days/` | 担当日設定画面 |
+| `POST` | `/rosters/{id}/duty-days/` | 担当日設定の保存 |
 
 ## 9. 入力チェックとエラー表示
 
@@ -436,3 +542,4 @@ erDiagram
 ## ライセンス
 
 未定です。
+
